@@ -1,40 +1,3 @@
-/// DenomTrace contains the base denomination for ICS20 fungible tokens and the
-/// source tracing information path.
-#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct DenomTrace {
-    /// path defines the chain of port/channel identifiers used for tracing the
-    /// source of the fungible token.
-    #[prost(string, tag = "1")]
-    pub path: ::prost::alloc::string::String,
-    /// base denomination of the relayed fungible token.
-    #[prost(string, tag = "2")]
-    pub base_denom: ::prost::alloc::string::String,
-}
-/// Params defines the set of IBC transfer parameters.
-/// NOTE: To prevent a single token from being transferred, set the
-/// TransfersEnabled parameter to true and then set the bank module's SendEnabled
-/// parameter for the denomination to false.
-#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct Params {
-    /// send_enabled enables or disables all cross-chain token transfers from this
-    /// chain.
-    #[prost(bool, tag = "1")]
-    pub send_enabled: bool,
-    /// receive_enabled enables or disables all cross-chain token transfers to this
-    /// chain.
-    #[prost(bool, tag = "2")]
-    pub receive_enabled: bool,
-}
-/// GenesisState defines the ibc-transfer genesis state
-#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct GenesisState {
-    #[prost(string, tag = "1")]
-    pub port_id: ::prost::alloc::string::String,
-    #[prost(message, repeated, tag = "2")]
-    pub denom_traces: ::prost::alloc::vec::Vec<DenomTrace>,
-    #[prost(message, optional, tag = "3")]
-    pub params: ::core::option::Option<Params>,
-}
 /// MsgTransfer defines a msg to transfer fungible tokens (i.e Coins) between
 /// ICS20 enabled chains. See ICS Spec here:
 /// <https://github.com/cosmos/ibc/tree/master/spec/app/ics-020-fungible-token-transfer#data-structures>
@@ -144,6 +107,33 @@ pub mod msg_client {
         }
     }
 }
+/// DenomTrace contains the base denomination for ICS20 fungible tokens and the
+/// source tracing information path.
+#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct DenomTrace {
+    /// path defines the chain of port/channel identifiers used for tracing the
+    /// source of the fungible token.
+    #[prost(string, tag = "1")]
+    pub path: ::prost::alloc::string::String,
+    /// base denomination of the relayed fungible token.
+    #[prost(string, tag = "2")]
+    pub base_denom: ::prost::alloc::string::String,
+}
+/// Params defines the set of IBC transfer parameters.
+/// NOTE: To prevent a single token from being transferred, set the
+/// TransfersEnabled parameter to true and then set the bank module's SendEnabled
+/// parameter for the denomination to false.
+#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Params {
+    /// send_enabled enables or disables all cross-chain token transfers from this
+    /// chain.
+    #[prost(bool, tag = "1")]
+    pub send_enabled: bool,
+    /// receive_enabled enables or disables all cross-chain token transfers to this
+    /// chain.
+    #[prost(bool, tag = "2")]
+    pub receive_enabled: bool,
+}
 /// QueryDenomTraceRequest is the request type for the Query/DenomTrace RPC
 /// method
 #[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -197,7 +187,7 @@ pub struct QueryParamsResponse {
 /// method
 #[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct QueryDenomHashRequest {
-    /// The denomination trace `(\[port_id]/[channel_id])+/[denom\]`
+    /// The denomination trace (\[port_id]/[channel_id])+/[denom\]
     #[prost(string, tag = "1")]
     pub trace: ::prost::alloc::string::String,
 }
@@ -339,4 +329,14 @@ pub mod query_client {
             self.inner.unary(request.into_request(), path, codec).await
         }
     }
+}
+/// GenesisState defines the ibc-transfer genesis state
+#[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GenesisState {
+    #[prost(string, tag = "1")]
+    pub port_id: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub denom_traces: ::prost::alloc::vec::Vec<DenomTrace>,
+    #[prost(message, optional, tag = "3")]
+    pub params: ::core::option::Option<Params>,
 }

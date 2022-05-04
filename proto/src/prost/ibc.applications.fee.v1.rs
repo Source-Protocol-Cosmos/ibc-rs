@@ -1,3 +1,14 @@
+/// Metadata defines the ICS29 channel specific metadata encoded into the channel version bytestring
+/// See ICS004: <https://github.com/cosmos/ibc/tree/master/spec/core/ics-004-channel-and-packet-semantics#Versioning>
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Metadata {
+    /// fee_version defines the ICS29 fee version
+    #[prost(string, tag = "1")]
+    pub fee_version: ::prost::alloc::string::String,
+    /// app_version defines the underlying application version, which may or may not be a JSON encoded bytestring
+    #[prost(string, tag = "2")]
+    pub app_version: ::prost::alloc::string::String,
+}
 /// Fee defines the ICS29 receive, acknowledgement and timeout fees
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Fee {
@@ -41,55 +52,6 @@ pub struct IdentifiedPacketFees {
     /// list of packet fees
     #[prost(message, repeated, tag = "2")]
     pub packet_fees: ::prost::alloc::vec::Vec<PacketFee>,
-}
-/// GenesisState defines the ICS29 fee middleware genesis state
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GenesisState {
-    /// list of identified packet fees
-    #[prost(message, repeated, tag = "1")]
-    pub identified_fees: ::prost::alloc::vec::Vec<IdentifiedPacketFees>,
-    /// list of fee enabled channels
-    #[prost(message, repeated, tag = "2")]
-    pub fee_enabled_channels: ::prost::alloc::vec::Vec<FeeEnabledChannel>,
-    /// list of registered relayer addresses
-    #[prost(message, repeated, tag = "3")]
-    pub registered_relayers: ::prost::alloc::vec::Vec<RegisteredRelayerAddress>,
-    /// list of forward relayer addresses
-    #[prost(message, repeated, tag = "4")]
-    pub forward_relayers: ::prost::alloc::vec::Vec<ForwardRelayerAddress>,
-}
-/// FeeEnabledChannel contains the PortID & ChannelID for a fee enabled channel
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FeeEnabledChannel {
-    /// unique port identifier
-    #[prost(string, tag = "1")]
-    pub port_id: ::prost::alloc::string::String,
-    /// unique channel identifier
-    #[prost(string, tag = "2")]
-    pub channel_id: ::prost::alloc::string::String,
-}
-/// RegisteredRelayerAddress contains the address and counterparty address for a specific relayer (for distributing fees)
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RegisteredRelayerAddress {
-    /// the relayer address
-    #[prost(string, tag = "1")]
-    pub address: ::prost::alloc::string::String,
-    /// the counterparty relayer address
-    #[prost(string, tag = "2")]
-    pub counterparty_address: ::prost::alloc::string::String,
-    /// unique channel identifier
-    #[prost(string, tag = "3")]
-    pub channel_id: ::prost::alloc::string::String,
-}
-/// ForwardRelayerAddress contains the forward relayer address and PacketId used for async acknowledgements
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ForwardRelayerAddress {
-    /// the forward relayer address
-    #[prost(string, tag = "1")]
-    pub address: ::prost::alloc::string::String,
-    /// unique packet identifer comprised of the channel ID, port ID and sequence
-    #[prost(message, optional, tag = "2")]
-    pub packet_id: ::core::option::Option<super::super::super::core::channel::v1::PacketId>,
 }
 /// MsgRegisterCounterpartyAddress defines the request type for the RegisterCounterpartyAddress rpc
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -267,16 +229,54 @@ pub mod msg_client {
         }
     }
 }
-/// Metadata defines the ICS29 channel specific metadata encoded into the channel version bytestring
-/// See ICS004: <https://github.com/cosmos/ibc/tree/master/spec/core/ics-004-channel-and-packet-semantics#Versioning>
+/// GenesisState defines the ICS29 fee middleware genesis state
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Metadata {
-    /// fee_version defines the ICS29 fee version
+pub struct GenesisState {
+    /// list of identified packet fees
+    #[prost(message, repeated, tag = "1")]
+    pub identified_fees: ::prost::alloc::vec::Vec<IdentifiedPacketFees>,
+    /// list of fee enabled channels
+    #[prost(message, repeated, tag = "2")]
+    pub fee_enabled_channels: ::prost::alloc::vec::Vec<FeeEnabledChannel>,
+    /// list of registered relayer addresses
+    #[prost(message, repeated, tag = "3")]
+    pub registered_relayers: ::prost::alloc::vec::Vec<RegisteredRelayerAddress>,
+    /// list of forward relayer addresses
+    #[prost(message, repeated, tag = "4")]
+    pub forward_relayers: ::prost::alloc::vec::Vec<ForwardRelayerAddress>,
+}
+/// FeeEnabledChannel contains the PortID & ChannelID for a fee enabled channel
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FeeEnabledChannel {
+    /// unique port identifier
     #[prost(string, tag = "1")]
-    pub fee_version: ::prost::alloc::string::String,
-    /// app_version defines the underlying application version, which may or may not be a JSON encoded bytestring
+    pub port_id: ::prost::alloc::string::String,
+    /// unique channel identifier
     #[prost(string, tag = "2")]
-    pub app_version: ::prost::alloc::string::String,
+    pub channel_id: ::prost::alloc::string::String,
+}
+/// RegisteredRelayerAddress contains the address and counterparty address for a specific relayer (for distributing fees)
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RegisteredRelayerAddress {
+    /// the relayer address
+    #[prost(string, tag = "1")]
+    pub address: ::prost::alloc::string::String,
+    /// the counterparty relayer address
+    #[prost(string, tag = "2")]
+    pub counterparty_address: ::prost::alloc::string::String,
+    /// unique channel identifier
+    #[prost(string, tag = "3")]
+    pub channel_id: ::prost::alloc::string::String,
+}
+/// ForwardRelayerAddress contains the forward relayer address and PacketId used for async acknowledgements
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ForwardRelayerAddress {
+    /// the forward relayer address
+    #[prost(string, tag = "1")]
+    pub address: ::prost::alloc::string::String,
+    /// unique packet identifer comprised of the channel ID, port ID and sequence
+    #[prost(message, optional, tag = "2")]
+    pub packet_id: ::core::option::Option<super::super::super::core::channel::v1::PacketId>,
 }
 /// QueryIncentivizedPacketsRequest defines the request type for the IncentivizedPackets rpc
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -381,6 +381,59 @@ pub struct QueryTotalTimeoutFeesResponse {
     #[prost(message, repeated, tag = "1")]
     pub timeout_fees:
         ::prost::alloc::vec::Vec<super::super::super::super::cosmos::base::v1beta1::Coin>,
+}
+/// QueryCounterpartyAddressRequest defines the request type for the CounterpartyAddress rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryCounterpartyAddressRequest {
+    /// unique channel identifier
+    #[prost(string, tag = "1")]
+    pub channel_id: ::prost::alloc::string::String,
+    /// the relayer address to which the counterparty is registered
+    #[prost(string, tag = "2")]
+    pub relayer_address: ::prost::alloc::string::String,
+}
+/// QueryCounterpartyAddressResponse defines the response type for the CounterpartyAddress rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryCounterpartyAddressResponse {
+    /// the counterparty address used to compensate forward relaying
+    #[prost(string, tag = "1")]
+    pub counterparty_address: ::prost::alloc::string::String,
+}
+/// QueryFeeEnabledChannelsRequest defines the request type for the FeeEnabledChannels rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryFeeEnabledChannelsRequest {
+    /// pagination defines an optional pagination for the request.
+    #[prost(message, optional, tag = "1")]
+    pub pagination: ::core::option::Option<
+        super::super::super::super::cosmos::base::query::v1beta1::PageRequest,
+    >,
+    /// block height at which to query
+    #[prost(uint64, tag = "2")]
+    pub query_height: u64,
+}
+/// QueryFeeEnabledChannelsResponse defines the response type for the FeeEnabledChannels rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryFeeEnabledChannelsResponse {
+    /// list of fee enabled channels
+    #[prost(message, repeated, tag = "1")]
+    pub fee_enabled_channels: ::prost::alloc::vec::Vec<FeeEnabledChannel>,
+}
+/// QueryFeeEnabledChannelRequest defines the request type for the FeeEnabledChannel rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryFeeEnabledChannelRequest {
+    /// unique port identifier
+    #[prost(string, tag = "1")]
+    pub port_id: ::prost::alloc::string::String,
+    /// unique channel identifier
+    #[prost(string, tag = "2")]
+    pub channel_id: ::prost::alloc::string::String,
+}
+/// QueryFeeEnabledChannelResponse defines the response type for the FeeEnabledChannel rpc
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryFeeEnabledChannelResponse {
+    /// boolean flag representing the fee enabled channel status
+    #[prost(bool, tag = "1")]
+    pub fee_enabled: bool,
 }
 #[doc = r" Generated client implementations."]
 #[cfg(feature = "client")]
@@ -545,6 +598,59 @@ pub mod query_client {
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/ibc.applications.fee.v1.Query/TotalTimeoutFees",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        #[doc = " CounterpartyAddress returns the registered counterparty address for forward relaying"]
+        pub async fn counterparty_address(
+            &mut self,
+            request: impl tonic::IntoRequest<super::QueryCounterpartyAddressRequest>,
+        ) -> Result<tonic::Response<super::QueryCounterpartyAddressResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/ibc.applications.fee.v1.Query/CounterpartyAddress",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        #[doc = " FeeEnabledChannels returns a list of all fee enabled channels"]
+        pub async fn fee_enabled_channels(
+            &mut self,
+            request: impl tonic::IntoRequest<super::QueryFeeEnabledChannelsRequest>,
+        ) -> Result<tonic::Response<super::QueryFeeEnabledChannelsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/ibc.applications.fee.v1.Query/FeeEnabledChannels",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        #[doc = " FeeEnabledChannel returns true if the provided port and channel identifiers belong to a fee enabled channel"]
+        pub async fn fee_enabled_channel(
+            &mut self,
+            request: impl tonic::IntoRequest<super::QueryFeeEnabledChannelRequest>,
+        ) -> Result<tonic::Response<super::QueryFeeEnabledChannelResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/ibc.applications.fee.v1.Query/FeeEnabledChannel",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }

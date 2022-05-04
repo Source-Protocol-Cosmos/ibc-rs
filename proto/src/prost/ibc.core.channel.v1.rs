@@ -251,6 +251,8 @@ pub struct MsgChannelOpenInit {
 pub struct MsgChannelOpenInitResponse {
     #[prost(string, tag = "1")]
     pub channel_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub version: ::prost::alloc::string::String,
 }
 /// MsgChannelOpenInit defines a msg sent by a Relayer to try to open a channel
 /// on Chain B. The version field within the Channel field has been deprecated. Its
@@ -277,7 +279,10 @@ pub struct MsgChannelOpenTry {
 }
 /// MsgChannelOpenTryResponse defines the Msg/ChannelOpenTry response type.
 #[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct MsgChannelOpenTryResponse {}
+pub struct MsgChannelOpenTryResponse {
+    #[prost(string, tag = "1")]
+    pub version: ::prost::alloc::string::String,
+}
 /// MsgChannelOpenAck defines a msg sent by a Relayer to Chain A to acknowledge
 /// the change of channel state to TRYOPEN on Chain B.
 #[derive(::serde::Serialize, ::serde::Deserialize, Clone, PartialEq, ::prost::Message)]
