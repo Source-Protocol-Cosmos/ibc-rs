@@ -8,17 +8,23 @@ use core::time::Duration;
 use ibc_relayer::chain::handle::ChainHandle;
 use tracing::info;
 
-use super::chain::{run_binary_chain_test, BinaryChainTest, RelayerConfigOverride};
-use super::node::{NodeConfigOverride, NodeGenesisOverride};
-use crate::bootstrap::binary::connection::bootstrap_connection;
+use crate::bootstrap::binary::connection::{bootstrap_connection, BootstrapConnectionOptions};
 use crate::error::Error;
 use crate::framework::base::HasOverrides;
 use crate::framework::base::TestConfigOverride;
+use crate::framework::binary::chain::{
+    BinaryChainTest, ClientOptionsOverride, RelayerConfigOverride, RunBinaryChainTest,
+};
+use crate::framework::binary::node::{
+    run_binary_node_test, NodeConfigOverride, NodeGenesisOverride,
+};
+use crate::framework::supervisor::{RunWithSupervisor, SupervisorOverride};
 use crate::relayer::driver::RelayerDriver;
 use crate::types::binary::chains::ConnectedChains;
 use crate::types::binary::connection::ConnectedConnection;
 use crate::types::config::TestConfig;
 use crate::types::env::write_env;
+use crate::util::suspend::hang_on_error;
 
 /**
    Runs a test case that implements [`BinaryConnectionTest`], with
@@ -33,6 +39,8 @@ where
         + NodeConfigOverride
         + NodeGenesisOverride
         + RelayerConfigOverride
+        + ClientOptionsOverride
+        + SupervisorOverride
         + ConnectionDelayOverride,
 {
     run_binary_connection_test(&RunTwoWayBinaryConnectionTest::new(test))
@@ -49,9 +57,13 @@ where
         + NodeConfigOverride
         + NodeGenesisOverride
         + RelayerConfigOverride
+        + ClientOptionsOverride
+        + SupervisorOverride
         + ConnectionDelayOverride,
 {
-    run_binary_chain_test(&RunBinaryConnectionTest::new(test))
+    run_binary_node_test(&RunBinaryChainTest::new(&RunBinaryConnectionTest::new(
+        &RunWithSupervisor::new(test),
+    )))
 }
 
 /**
@@ -142,13 +154,11 @@ where
         relayer: RelayerDriver,
         chains: ConnectedChains<ChainA, ChainB>,
     ) -> Result<(), Error> {
-        let connection_delay = self.get_overrides().connection_delay();
+        let bootstrap_options = BootstrapConnectionOptions::default()
+            .connection_delay(self.get_overrides().connection_delay())
+            .bootstrap_with_random_ids(config.bootstrap_with_random_ids);
 
-        let connection = bootstrap_connection(
-            &chains.foreign_clients,
-            connection_delay,
-            config.bootstrap_with_random_ids,
-        )?;
+        let connection = bootstrap_connection(&chains.foreign_clients, bootstrap_options)?;
 
         let env_path = config.chain_store_dir.join("binary-connections.env");
 
@@ -197,6 +207,31 @@ impl<'a, Test: BinaryConnectionTest> BinaryConnectionTest
         self.test.run(config, relayer, chains, connection)?;
 
         Ok(())
+    }
+}
+
+impl<'a, Test, Overrides> BinaryConnectionTest for RunWithSupervisor<'a, Test>
+where
+    Test: BinaryConnectionTest,
+    Test: HasOverrides<Overrides = Overrides>,
+    Overrides: SupervisorOverride,
+{
+    fn run<ChainA: ChainHandle, ChainB: ChainHandle>(
+        &self,
+        config: &TestConfig,
+        relayer: RelayerDriver,
+        chains: ConnectedChains<ChainA, ChainB>,
+        connection: ConnectedConnection<ChainA, ChainB>,
+    ) -> Result<(), Error> {
+        if self.get_overrides().should_spawn_supervisor() {
+            relayer
+                .clone()
+                .with_supervisor(|| self.test.run(config, relayer, chains, connection))
+        } else {
+            hang_on_error(config.hang_on_fail, || {
+                self.test.run(config, relayer, chains, connection)
+            })
+        }
     }
 }
 

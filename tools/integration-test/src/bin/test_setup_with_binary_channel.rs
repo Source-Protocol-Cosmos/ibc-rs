@@ -27,10 +27,19 @@
 
 use ibc_relayer::keyring::Store;
 use ibc_test_framework::prelude::*;
+use std::env;
+use std::path::PathBuf;
 
-struct Test;
+struct Test {
+    store_dir: PathBuf,
+}
 
 impl TestOverrides for Test {
+    fn modify_test_config(&self, config: &mut TestConfig) {
+        config.bootstrap_with_random_ids = false;
+        config.chain_store_dir = self.store_dir.clone();
+    }
+
     fn modify_relayer_config(&self, config: &mut Config) {
         for mut chain in config.chains.iter_mut() {
             // Modify the key store type to `Store::Test` so that the wallet
@@ -39,20 +48,35 @@ impl TestOverrides for Test {
             chain.key_store_type = Store::Test;
         }
     }
+
+    fn should_spawn_supervisor(&self) -> bool {
+        false
+    }
 }
 
 impl BinaryChannelTest for Test {
     fn run<ChainA: ChainHandle, ChainB: ChainHandle>(
         &self,
         _config: &TestConfig,
-        relayer: RelayerDriver,
+        _relayer: RelayerDriver,
         _chains: ConnectedChains<ChainA, ChainB>,
         _channel: ConnectedChannel<ChainA, ChainB>,
     ) -> Result<(), Error> {
-        relayer.with_supervisor(suspend)
+        suspend()
     }
 }
 
 fn main() -> Result<(), Error> {
-    run_binary_channel_test(&Test)
+    let store_dir = env::var("TEST_STORE_DIR").unwrap_or_else(|_| "data/test".to_string());
+
+    println!(
+        "Setting up binary channel test environment at {}. (Overridable with $TEST_STORE_DIR)",
+        store_dir
+    );
+
+    println!("Make sure the directory is clean for the setup to succeed");
+
+    run_binary_channel_test(&Test {
+        store_dir: store_dir.into(),
+    })
 }

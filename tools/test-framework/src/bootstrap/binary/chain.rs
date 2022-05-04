@@ -6,15 +6,15 @@
 use eyre::Report as Error;
 use ibc::core::ics24_host::identifier::ClientId;
 use ibc_relayer::chain::handle::{ChainHandle, CountingAndCachingChainHandle};
-use ibc_relayer::config::{Config, SharedConfig};
+use ibc_relayer::config::Config;
 use ibc_relayer::error::ErrorDetail as RelayerErrorDetail;
-use ibc_relayer::foreign_client::{extract_client_id, ForeignClient};
+use ibc_relayer::foreign_client::{
+    extract_client_id, CreateOptions as ClientOptions, ForeignClient,
+};
 use ibc_relayer::keyring::errors::ErrorDetail as KeyringErrorDetail;
 use ibc_relayer::registry::SharedRegistry;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
-use std::sync::RwLock;
 use tracing::{debug, info};
 
 use crate::relayer::driver::RelayerDriver;
@@ -26,19 +26,25 @@ use crate::types::tagged::*;
 use crate::types::wallet::{TestWallets, Wallet};
 use crate::util::random::random_u64_range;
 
-/**
-   Bootstraps two relayer chain handles with connected foreign clients.
+#[derive(Default)]
+pub struct BootstrapClientOptions {
+    pub client_options_a_to_b: ClientOptions,
+    pub client_options_b_to_a: ClientOptions,
+    pub pad_client_id_a_to_b: u64,
+    pub pad_client_id_b_to_a: u64,
+}
 
-   Takes two [`FullNode`] values representing two different running
-   full nodes, and return a [`ConnectedChains`] that contain the given
-   full nodes together with the corresponding two [`ChainHandle`]s and
-   [`ForeignClient`]s. Also accepts an [`FnOnce`] closure that modifies
-   the relayer's [`Config`] before the chain handles are initialized.
-*/
-pub fn boostrap_chain_pair_with_nodes(
+/// Bootstraps two relayer chain handles with connected foreign clients.
+///
+/// Returns a tuple consisting of the [`RelayerDriver`] and a
+/// [`ConnectedChains`] object that contains the given
+/// full nodes together with the corresponding two [`ChainHandle`]s and
+/// [`ForeignClient`]s.
+pub fn bootstrap_chains_with_full_nodes(
     test_config: &TestConfig,
     node_a: FullNode,
     node_b: FullNode,
+    options: BootstrapClientOptions,
     config_modifier: impl FnOnce(&mut Config),
 ) -> Result<
     (
@@ -58,8 +64,6 @@ pub fn boostrap_chain_pair_with_nodes(
 
     save_relayer_config(&config, &config_path)?;
 
-    let config = Arc::new(RwLock::new(config));
-
     let registry = new_registry(config.clone());
 
     // Pass in unique closure expressions `||{}` as the first argument so that
@@ -68,12 +72,10 @@ pub fn boostrap_chain_pair_with_nodes(
     let handle_a = spawn_chain_handle(|| {}, &registry, &node_a)?;
     let handle_b = spawn_chain_handle(|| {}, &registry, &node_b)?;
 
-    if test_config.bootstrap_with_random_ids {
-        pad_client_ids(&handle_a, &handle_b)?;
-        pad_client_ids(&handle_b, &handle_a)?;
-    }
+    pad_client_ids(&handle_a, &handle_b, options.pad_client_id_a_to_b)?;
+    pad_client_ids(&handle_b, &handle_a, options.pad_client_id_b_to_a)?;
 
-    let foreign_clients = bootstrap_foreign_client_pair(&handle_a, &handle_b)?;
+    let foreign_clients = bootstrap_foreign_client_pair(&handle_a, &handle_b, options)?;
 
     let relayer = RelayerDriver {
         config_path,
@@ -93,74 +95,34 @@ pub fn boostrap_chain_pair_with_nodes(
     Ok((relayer, chains))
 }
 
-/**
-   Work similary to [`boostrap_chain_pair_with_nodes`], but bootstraps a
-   single chain to be connected with itself.
-
-   Self-connected chains are in fact allowed in IBC. Although we do not
-   have a clear use case for it yet, it is important to verify that
-   tests that pass with two connected chains should also pass with
-   self-connected chains.
-
-   Returns a [`ConnectedChains`] with the two underlying chains
-   being the same chain.
-*/
-pub fn boostrap_self_connected_chain(
-    test_config: &TestConfig,
-    node: FullNode,
-    config_modifier: impl FnOnce(&mut Config),
-) -> Result<
-    (
-        RelayerDriver,
-        ConnectedChains<impl ChainHandle, impl ChainHandle>,
-    ),
-    Error,
-> {
-    boostrap_chain_pair_with_nodes(test_config, node.clone(), node, config_modifier)
-}
-
-pub fn pad_client_ids<ChainA: ChainHandle, ChainB: ChainHandle>(
-    chain_a: &ChainA,
-    chain_b: &ChainB,
-) -> Result<(), Error> {
-    let foreign_client =
-        ForeignClient::restore(ClientId::default(), chain_b.clone(), chain_a.clone());
-
-    for i in 0..random_u64_range(1, 6) {
-        debug!("creating new client id {} on chain {}", i + 1, chain_b.id());
-        foreign_client.build_create_client_and_send(&Default::default())?;
-    }
-
-    Ok(())
-}
-
+/// Bootstraps two relayer chain handles with connected foreign clients.
+///
+/// Returns a tuple consisting of the [`RelayerDriver`] and a
+/// [`ConnectedChains`] object that contains the given
+/// full nodes together with the corresponding two [`ChainHandle`]s and
+/// [`ForeignClient`]s.
+///
+/// This method gives the caller a way to modify the relayer configuration
+/// that is pre-generated from the configurations of the full nodes.
 pub fn bootstrap_foreign_client_pair<ChainA: ChainHandle, ChainB: ChainHandle>(
     chain_a: &ChainA,
     chain_b: &ChainB,
+    options: BootstrapClientOptions,
 ) -> Result<ForeignClientPair<ChainA, ChainB>, Error> {
-    let client_a_to_b = bootstrap_foreign_client(chain_a, chain_b)?;
-    let client_b_to_a = bootstrap_foreign_client(chain_b, chain_a)?;
-
+    let client_a_to_b = bootstrap_foreign_client(chain_a, chain_b, options.client_options_a_to_b)?;
+    let client_b_to_a = bootstrap_foreign_client(chain_b, chain_a, options.client_options_b_to_a)?;
     Ok(ForeignClientPair::new(client_a_to_b, client_b_to_a))
 }
 
-/**
-   Bootstrap a foreign client from `ChainA` to `ChainB`, i.e. the foreign
-   client collects information from `ChainA` and submits them as transactions
-   to `ChainB`.
-
-   The returned `ForeignClient` is tagged in contravariant ordering, i.e.
-   `ChainB` then `ChainB`, because `ForeignClient` takes the the destination
-   chain in the first position.
-*/
 pub fn bootstrap_foreign_client<ChainA: ChainHandle, ChainB: ChainHandle>(
     chain_a: &ChainA,
     chain_b: &ChainB,
+    client_options: ClientOptions,
 ) -> Result<ForeignClient<ChainB, ChainA>, Error> {
     let foreign_client =
         ForeignClient::restore(ClientId::default(), chain_b.clone(), chain_a.clone());
 
-    let event = foreign_client.build_create_client_and_send(&Default::default())?;
+    let event = foreign_client.build_create_client_and_send(client_options)?;
     let client_id = extract_client_id(&event)?.clone();
 
     info!(
@@ -176,6 +138,22 @@ pub fn bootstrap_foreign_client<ChainA: ChainHandle, ChainB: ChainHandle>(
         chain_b.clone(),
         chain_a.clone(),
     ))
+}
+
+pub fn pad_client_ids<ChainA: ChainHandle, ChainB: ChainHandle>(
+    chain_a: &ChainA,
+    chain_b: &ChainB,
+    pad_count: u64,
+) -> Result<(), Error> {
+    let foreign_client =
+        ForeignClient::restore(ClientId::default(), chain_b.clone(), chain_a.clone());
+
+    for i in 0..pad_count {
+        debug!("creating new client id {} on chain {}", i + 1, chain_b.id());
+        foreign_client.build_create_client_and_send(Default::default())?;
+    }
+
+    Ok(())
 }
 
 /**
@@ -263,7 +241,7 @@ pub fn add_keys_to_chain_handle<Chain: ChainHandle>(
    Create a new [`SharedRegistry`] that uses [`CountingAndCachingChainHandle`]
    as the [`ChainHandle`] implementation.
 */
-pub fn new_registry(config: SharedConfig) -> SharedRegistry<CountingAndCachingChainHandle> {
+pub fn new_registry(config: Config) -> SharedRegistry<CountingAndCachingChainHandle> {
     <SharedRegistry<CountingAndCachingChainHandle>>::new(config)
 }
 
@@ -281,12 +259,6 @@ pub fn add_chain_config(config: &mut Config, running_node: &FullNode) -> Result<
 /**
    Save a relayer's [`Config`] to the filesystem to make it accessible
    through external CLI.
-
-   Note that the saved config file will not be updated if the
-   [`SharedConfig`] is reloaded within the test. So test authors that
-   test on the config reloading functionality of the relayer would have to
-   call this function again to save the updated relayer config to the
-   filesystem.
 */
 pub fn save_relayer_config(config: &Config, config_path: &Path) -> Result<(), Error> {
     let config_str = toml::to_string_pretty(&config)?;
@@ -300,4 +272,30 @@ pub fn save_relayer_config(config: &Config, config_path: &Path) -> Result<(), Er
     );
 
     Ok(())
+}
+
+impl BootstrapClientOptions {
+    /// Overrides options for the foreign client connecting chain A to chain B.
+    pub fn client_options_a_to_b(mut self, options: ClientOptions) -> Self {
+        self.client_options_a_to_b = options;
+        self
+    }
+
+    /// Overrides options for the foreign client connecting chain B to chain A.
+    pub fn client_options_b_to_a(mut self, options: ClientOptions) -> Self {
+        self.client_options_b_to_a = options;
+        self
+    }
+
+    pub fn bootstrap_with_random_ids(mut self, bootstrap_with_random_ids: bool) -> Self {
+        if bootstrap_with_random_ids {
+            self.pad_client_id_b_to_a = random_u64_range(1, 6);
+            self.pad_client_id_a_to_b = random_u64_range(1, 6);
+        } else {
+            self.pad_client_id_b_to_a = 0;
+            self.pad_client_id_a_to_b = 1;
+        }
+
+        self
+    }
 }

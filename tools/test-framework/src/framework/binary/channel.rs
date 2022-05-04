@@ -10,14 +10,21 @@ use ibc::core::ics24_host::identifier::PortId;
 use ibc_relayer::chain::handle::ChainHandle;
 use tracing::info;
 
-use super::chain::RelayerConfigOverride;
-use super::connection::{
-    run_binary_connection_test, BinaryConnectionTest, ConnectionDelayOverride,
+use crate::bootstrap::binary::channel::{
+    bootstrap_channel_with_connection, BootstrapChannelOptions,
 };
-use super::node::{NodeConfigOverride, NodeGenesisOverride};
-use crate::bootstrap::binary::channel::bootstrap_channel_with_connection;
 use crate::error::Error;
 use crate::framework::base::{HasOverrides, TestConfigOverride};
+use crate::framework::binary::chain::{
+    ClientOptionsOverride, RelayerConfigOverride, RunBinaryChainTest,
+};
+use crate::framework::binary::connection::{
+    BinaryConnectionTest, ConnectionDelayOverride, RunBinaryConnectionTest,
+};
+use crate::framework::binary::node::{
+    run_binary_node_test, NodeConfigOverride, NodeGenesisOverride,
+};
+use crate::framework::supervisor::{RunWithSupervisor, SupervisorOverride};
 use crate::relayer::driver::RelayerDriver;
 use crate::types::binary::chains::ConnectedChains;
 use crate::types::binary::channel::ConnectedChannel;
@@ -25,6 +32,7 @@ use crate::types::binary::connection::ConnectedConnection;
 use crate::types::config::TestConfig;
 use crate::types::env::write_env;
 use crate::types::tagged::*;
+use crate::util::suspend::hang_on_error;
 
 /**
    Runs a test case that implements [`BinaryChannelTest`], with
@@ -39,6 +47,8 @@ where
         + NodeConfigOverride
         + NodeGenesisOverride
         + RelayerConfigOverride
+        + ClientOptionsOverride
+        + SupervisorOverride
         + ConnectionDelayOverride
         + PortsOverride
         + ChannelOrderOverride
@@ -58,12 +68,16 @@ where
         + NodeConfigOverride
         + NodeGenesisOverride
         + RelayerConfigOverride
+        + ClientOptionsOverride
+        + SupervisorOverride
         + ConnectionDelayOverride
         + PortsOverride
         + ChannelOrderOverride
         + ChannelVersionOverride,
 {
-    run_binary_connection_test(&RunBinaryChannelTest::new(test))
+    run_binary_node_test(&RunBinaryChainTest::new(&RunBinaryConnectionTest::new(
+        &RunBinaryChannelTest::new(&RunWithSupervisor::new(test)),
+    )))
 }
 
 /**
@@ -184,8 +198,11 @@ where
 
         let port_a = overrides.channel_port_a();
         let port_b = overrides.channel_port_b();
-        let order = overrides.channel_order();
-        let version = overrides.channel_version();
+
+        let bootstrap_options = BootstrapChannelOptions::default()
+            .order(overrides.channel_order())
+            .version(overrides.channel_version())
+            .bootstrap_with_random_ids(config.bootstrap_with_random_ids);
 
         let channels = bootstrap_channel_with_connection(
             &chains.handle_a,
@@ -193,20 +210,16 @@ where
             connection,
             &DualTagged::new(port_a).as_ref(),
             &DualTagged::new(port_b).as_ref(),
-            order,
-            version,
-            config.bootstrap_with_random_ids,
+            bootstrap_options,
         )?;
 
         let env_path = config.chain_store_dir.join("binary-channels.env");
 
-        write_env(&env_path, &(&chains, &channels))?;
+        write_env(&env_path, &(&chains, &(&relayer, &channels)))?;
 
         info!("written channel environment to {}", env_path.display());
 
-        self.test
-            .run(config, relayer, chains, channels)
-            .map_err(config.hang_on_error())?;
+        self.test.run(config, relayer, chains, channels)?;
 
         Ok(())
     }
@@ -229,8 +242,7 @@ impl<'a, Test: BinaryChannelTest> BinaryChannelTest for RunTwoWayBinaryChannelTe
         );
 
         self.test
-            .run(config, relayer.clone(), chains.clone(), channels.clone())
-            .map_err(config.hang_on_error())?;
+            .run(config, relayer.clone(), chains.clone(), channels.clone())?;
 
         info!(
             "running two-way channel test in the opposite direction, from {}/{} to {}/{}",
@@ -243,11 +255,34 @@ impl<'a, Test: BinaryChannelTest> BinaryChannelTest for RunTwoWayBinaryChannelTe
         let chains = chains.flip();
         let channels = channels.flip();
 
-        self.test
-            .run(config, relayer, chains, channels)
-            .map_err(config.hang_on_error())?;
+        self.test.run(config, relayer, chains, channels)?;
 
         Ok(())
+    }
+}
+
+impl<'a, Test, Overrides> BinaryChannelTest for RunWithSupervisor<'a, Test>
+where
+    Test: BinaryChannelTest,
+    Test: HasOverrides<Overrides = Overrides>,
+    Overrides: SupervisorOverride,
+{
+    fn run<ChainA: ChainHandle, ChainB: ChainHandle>(
+        &self,
+        config: &TestConfig,
+        relayer: RelayerDriver,
+        chains: ConnectedChains<ChainA, ChainB>,
+        channels: ConnectedChannel<ChainA, ChainB>,
+    ) -> Result<(), Error> {
+        if self.get_overrides().should_spawn_supervisor() {
+            relayer
+                .clone()
+                .with_supervisor(|| self.test.run(config, relayer, chains, channels))
+        } else {
+            hang_on_error(config.hang_on_fail, || {
+                self.test.run(config, relayer, chains, channels)
+            })
+        }
     }
 }
 

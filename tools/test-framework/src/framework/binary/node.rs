@@ -112,14 +112,16 @@ where
     fn run(&self, config: &TestConfig, builder: &ChainBuilder) -> Result<(), Error> {
         let node_a = bootstrap_single_node(
             builder,
-            "alpha",
+            "0",
+            config.bootstrap_with_random_ids,
             |config| self.test.get_overrides().modify_node_config(config),
             |genesis| self.test.get_overrides().modify_genesis_file(genesis),
         )?;
 
         let node_b = bootstrap_single_node(
             builder,
-            "beta",
+            "1",
+            config.bootstrap_with_random_ids,
             |config| self.test.get_overrides().modify_node_config(config),
             |genesis| self.test.get_overrides().modify_genesis_file(genesis),
         )?;
@@ -127,9 +129,7 @@ where
         let _node_process_a = node_a.process.clone();
         let _node_process_b = node_b.process.clone();
 
-        self.test
-            .run(config, node_a, node_b)
-            .map_err(config.hang_on_error())?;
+        self.test.run(config, node_a, node_b)?;
 
         Ok(())
     }
@@ -145,15 +145,14 @@ where
         let node = bootstrap_single_node(
             builder,
             "alpha",
+            config.bootstrap_with_random_ids,
             |config| self.test.get_overrides().modify_node_config(config),
             |genesis| self.test.get_overrides().modify_genesis_file(genesis),
         )?;
 
         let _node_process = node.process.clone();
 
-        self.test
-            .run(config, node.clone(), node)
-            .map_err(config.hang_on_error())?;
+        self.test.run(config, node.clone(), node)?;
 
         Ok(())
     }
