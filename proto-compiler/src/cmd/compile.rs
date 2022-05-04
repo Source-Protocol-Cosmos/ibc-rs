@@ -195,6 +195,7 @@ impl CompileCmd {
             format!("{}/proto/cosmos/gov", sdk_dir.display()),
             format!("{}/proto/cosmos/tx", sdk_dir.display()),
             format!("{}/proto/cosmos/base", sdk_dir.display()),
+            format!("{}/proto/cosmos/bank", sdk_dir.display()),
             format!("{}/proto/cosmos/staking", sdk_dir.display()),
             format!("{}/proto/cosmos/upgrade", sdk_dir.display()),
         ];
@@ -249,6 +250,7 @@ impl CompileCmd {
             .type_attribute(".cosmos.upgrade.v1beta1", attrs_serde)
             .type_attribute(".cosmos.base.v1beta1", attrs_serde)
             .type_attribute(".cosmos.base.query.v1beta1", attrs_serde)
+            .type_attribute(".cosmos.bank.v1beta1", attrs_serde)
             .compile(&protos, &includes);
 
         match compilation {
