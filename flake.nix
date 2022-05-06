@@ -36,6 +36,7 @@
               gaia6-ordered
               ibc-go-v2-simapp
               ibc-go-v3-simapp
+              ibc-go-main-simapp
             ;
 
             python = nixpkgs.python3.withPackages (p: [
