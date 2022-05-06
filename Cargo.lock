@@ -1586,6 +1586,7 @@ dependencies = [
  "eyre",
  "flex-error",
  "hex",
+ "http",
  "ibc",
  "ibc-proto",
  "ibc-relayer",
