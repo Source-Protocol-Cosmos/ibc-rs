@@ -20,9 +20,9 @@ pub struct GasConfig {
     pub fee_granter: String,
 }
 
-impl GasConfig {
-    pub fn from_chain_config(config: &ChainConfig) -> GasConfig {
-        GasConfig {
+impl<'a> From<&'a ChainConfig> for GasConfig {
+    fn from(config: &'a ChainConfig) -> Self {
+        Self {
             default_gas: default_gas_from_config(config),
             max_gas: max_gas_from_config(config),
             gas_adjustment: gas_adjustment_from_config(config),

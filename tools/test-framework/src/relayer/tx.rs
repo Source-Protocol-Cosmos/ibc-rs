@@ -1,18 +1,15 @@
-use core::str::FromStr;
 use eyre::eyre;
-use http::Uri;
 use ibc::events::IbcEvent;
 use ibc_proto::google::protobuf::Any;
 use ibc_relayer::chain::cosmos::query::account::query_account;
 use ibc_relayer::chain::cosmos::tx::estimate_fee_and_send_tx;
+use ibc_relayer::chain::cosmos::types::config::TxConfig;
 use ibc_relayer::chain::cosmos::types::tx::TxSyncResult;
 use ibc_relayer::chain::cosmos::wait::wait_for_block_commits;
 use ibc_relayer::config::types::Memo;
-use ibc_relayer::config::ChainConfig;
 use ibc_relayer::keyring::KeyEntry;
-use tendermint_rpc::HttpClient;
 
-use crate::error::{handle_generic_error, Error};
+use crate::error::Error;
 
 /**
  A simplified version of send_tx that does not depend on `ChainHandle`.
@@ -27,17 +24,12 @@ use crate::error::{handle_generic_error, Error};
    error event.
 */
 pub async fn simple_send_tx(
-    config: &ChainConfig,
+    config: &TxConfig,
     key_entry: &KeyEntry,
     memo: &Memo,
     messages: Vec<Any>,
 ) -> Result<(), Error> {
-    let rpc_client = HttpClient::new(config.rpc_addr.clone()).map_err(handle_generic_error)?;
-
-    let grpc_address =
-        Uri::from_str(&config.grpc_addr.to_string()).map_err(handle_generic_error)?;
-
-    let account = query_account(&grpc_address, &key_entry.account)
+    let account = query_account(&config.grpc_address, &key_entry.account)
         .await?
         .into();
 
@@ -45,10 +37,9 @@ pub async fn simple_send_tx(
 
     let response = estimate_fee_and_send_tx(
         config,
-        &rpc_client,
-        &grpc_address,
         key_entry,
         &account,
+        &Default::default(),
         memo,
         messages,
     )
@@ -64,9 +55,9 @@ pub async fn simple_send_tx(
     let mut tx_sync_results = vec![tx_sync_result];
 
     wait_for_block_commits(
-        &config.id,
-        &rpc_client,
-        &config.rpc_addr,
+        &config.chain_id,
+        &config.rpc_client,
+        &config.rpc_address,
         &config.rpc_timeout,
         &mut tx_sync_results,
     )
